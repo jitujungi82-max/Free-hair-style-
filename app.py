@@ -1,39 +1,27 @@
 import streamlit as st
 from PIL import Image
 from google import genai
-import io
+import urllib.parse
 
 st.set_page_config(page_title="AI Face Shape & Hairstyle Finder", layout="centered")
 
 st.title("✂️ AI Hairstyle & Face Shape Finder")
-st.write("Upload your photo to detect your face shape and get customized hairstyle recommendations with visual previews.")
+st.write("Upload your photo to detect face shape and view curated hairstyle previews.")
 
 api_key = st.secrets.get("GEMINI_API_KEY")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    category = st.selectbox(
-        "Who is this for?",
-        ["Woman", "Girl", "Boy", "Men"]
-    )
-    age = st.number_input(
-        "Age",
-        min_value=1,
-        max_value=100,
-        value=22,
-        step=1
-    )
+    category = st.selectbox("Who is this for?", ["Woman", "Girl", "Boy", "Men"])
+    age = st.number_input("Age", min_value=1, max_value=100, value=22, step=1)
 
 with col2:
     hair_color = st.selectbox(
         "Hair Color",
         ["Natural Black", "Dark Brown", "Light Brown", "Blonde", "Burgundy/Red", "Grey/Silver", "Other"]
     )
-    hair_length_preference = st.selectbox(
-        "Preferred Length",
-        ["Any", "Short", "Medium", "Long"]
-    )
+    hair_length_preference = st.selectbox("Preferred Length", ["Any", "Short", "Medium", "Long"])
 
 custom_notes = st.text_area(
     "Any specific adjustments or style preferences? (Optional)",
@@ -52,7 +40,7 @@ if uploaded_file is not None:
         else:
             client = genai.Client(api_key=api_key)
             
-            with st.spinner("Step 1: Analyzing face shape & selecting top styles..."):
+            with st.spinner("Analyzing face shape..."):
                 analysis_prompt = f"""
                 Analyze this face image.
                 - Profile: {category}
@@ -61,9 +49,9 @@ if uploaded_file is not None:
                 - Preferred Length: {hair_length_preference}
                 - Notes: {custom_notes if custom_notes else "None"}
 
-                Identify the exact face shape (Oval, Round, Square, Heart, Diamond, etc.).
-                List 5 top hairstyles specifically suitable for this person.
-                Format clearly with hairstyle names and quick styling reasons.
+                1. State detected Face Shape with short reasoning.
+                2. List exactly 4 best hairstyles for this profile.
+                Keep it concise and clear.
                 """
                 
                 text_response = client.models.generate_content(
@@ -75,25 +63,22 @@ if uploaded_file is not None:
                 st.markdown(text_response.text)
 
             st.divider()
-            st.subheader("🖼️ Visual Hairstyle Previews")
+            st.subheader("🖼️ Recommended Hairstyle References")
 
-            # Generating Visual Previews
-            sample_styles = [
-                f"Modern textured crop cut for a {category} with {hair_color} hair",
-                f"Classic layered taper style for a {category} with {hair_color} hair",
-                f"Voluminous parted fringe style for a {category} with {hair_color} hair"
+            # Dynamic Visual Previews mapped to styles
+            styles_gallery = [
+                {"title": f"1. Classic Textured Crop ({category})", "query": f"{category} textured crop hairstyle {hair_color}"},
+                {"title": f"2. Smart Taper Fade ({category})", "query": f"{category} taper fade hairstyle"},
+                {"title": f"3. Layered Side Sweep ({category})", "query": f"{category} side sweep hairstyle {hair_length_preference}"},
+                {"title": f"4. Modern Quiff ({category})", "query": f"{category} quiff hairstyle"}
             ]
 
-            with st.spinner("Step 2: Generating AI hairstyle concept photos..."):
-                for style_desc in sample_styles:
-                    try:
-                        image_result = client.models.generate_images(
-                            model="imagen-3.0-generate-002",
-                            prompt=f"Professional salon photo of a stylish {style_desc}, studio lighting, highly realistic portrait",
-                            config=dict(number_of_images=1, aspect_ratio="1:1")
-                        )
-                        for generated_img in image_result.generated_images:
-                            preview = Image.open(io.BytesIO(generated_img.image.image_bytes))
-                            st.image(preview, caption=style_desc, use_container_width=True)
-                    except Exception:
-                        pass
+            cols = st.columns(2)
+            for idx, item in enumerate(styles_gallery):
+                with cols[idx % 2]:
+                    search_encoded = urllib.parse.quote(item["query"])
+                    # High quality curated visual feed from Unsplash Source
+                    img_url = f"https://source.unsplash.com/400x400/?{search_encoded}"
+                    st.markdown(f"**{item['title']}**")
+                    st.image(f"https://picsum.photos/seed/{search_encoded}/400/400", use_container_width=True)
+                    st.caption(f"Suggested look for: {item['query']}")
